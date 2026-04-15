@@ -258,7 +258,7 @@ protected:
   {
 public:
     EventQueue()
-    : next_ts_(rclcpp::Time::max(RCL_ROS_TIME)), period_(0, 0),
+    : next_ts_(rclcpp::Time::max()), period_(0, 0),
       active_(false), msgs_processed_(0), msgs_dropped_(0) {}
 
     rclcpp::Time firstTimeStamp()
@@ -273,7 +273,7 @@ public:
       } else if (active_) {
         return next_ts_;
       }
-      return rclcpp::Time::max(RCL_ROS_TIME);
+      return rclcpp::Time::max();
     }
 
     void popFirst()
