@@ -1,3 +1,4 @@
+import time
 import unittest
 
 from builtin_interfaces.msg import Time as TimeMsg
@@ -45,6 +46,14 @@ class TestInputAligner(unittest.TestCase):
 
     def create_msg(self, cls, milliseconds, data):
         return cls(stamp=Time(nanoseconds=int(milliseconds * 1e6)).to_msg(), data=data)
+
+    def test_init(self):
+        f0, f1, f2, f3 = SimpleFilter(), SimpleFilter(), SimpleFilter(), SimpleFilter()
+        aligner1 = InputAligner(self.timeout, f0, f1, f2, f3)
+        self.assertEqual(len(aligner1.event_queues), 4)
+        aligner2 = InputAligner(self.timeout)
+        aligner2.connectInput(f0, f2, f3)
+        self.assertEqual(len(aligner2.event_queues), 3)
 
     def test_dispatch_inputs_in_order(self):
         aligner = InputAligner(self.timeout)
@@ -112,6 +121,37 @@ class TestInputAligner(unittest.TestCase):
         aligner.add(self.create_msg(Msg2, 6, 6), 1)
         aligner.dispatchMessages()
         self.assertEqual(self.cb_content, [3, 4, 5, 6, 7])
+
+    def test_dispatch_by_timer(self):
+        aligner = InputAligner(self.timeout)
+        aligner.connectInput(SimpleFilter(), SimpleFilter())
+        aligner.setupDispatchTimer(self.node, self.update_rate)
+        for i in range(2):
+            aligner.registerCallback(i, self.cb)
+            aligner.setInputPeriod(i, Duration(nanoseconds=int(2e6)))
+        aligner.add(self.create_msg(Msg2, 2, 2), 1)
+        aligner.add(self.create_msg(Msg1, 1, 1), 0)
+        time.sleep(0.05)
+        rclpy.spin_once(self.node, timeout_sec=0.01)
+        self.assertEqual(self.cb_content, [1, 2])
+
+    def test_no_period_information(self):
+        self.timeout = Duration(nanoseconds=int(1e7))
+        aligner = InputAligner(self.timeout)
+        aligner.connectInput(SimpleFilter(), SimpleFilter(), SimpleFilter())
+        for i in range(3):
+            aligner.registerCallback(i, self.cb)
+        aligner.add(self.create_msg(Msg1, 6, 6), 0)
+        aligner.add(self.create_msg(Msg1, 2, 2), 2)
+        aligner.add(self.create_msg(Msg1, 4, 4), 2)
+        aligner.add(self.create_msg(Msg2, 1, 1), 1)
+        aligner.add(self.create_msg(Msg2, 3, 3), 1)
+        aligner.add(self.create_msg(Msg2, 5, 5), 1)
+        aligner.dispatchMessages()
+        self.assertEqual(self.cb_content, [1, 2, 3, 4])
+        aligner.add(self.create_msg(Msg1, 16, 16), 0)
+        aligner.dispatchMessages()
+        self.assertEqual(self.cb_content, [1, 2, 3, 4, 5, 6, 16])
 
     def test_get_queue_status(self):
         self.timeout = Duration(nanoseconds=int(1e7))
