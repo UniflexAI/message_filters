@@ -2,6 +2,7 @@ from bisect import insort_right
 from dataclasses import dataclass
 import threading
 
+from builtin_interfaces.msg import Time as TimeMsg
 from rclpy.duration import Duration
 from rclpy.time import Time
 
@@ -28,11 +29,19 @@ class _Signal:
             cb(*(msg + args))
 
 
+def _ros_zero_time():
+    return Time.from_msg(TimeMsg())
+
+
+def _ros_max_time():
+    zero = _ros_zero_time()
+    return Time(nanoseconds=9223372036854775807, clock_type=zero.clock_type)
+
+
 class _EventQueue:
     def __init__(self):
         self.events = []
-        self.next_ts = Time(seconds=0).from_msg(Time(seconds=0).to_msg())
-        self.next_ts = Time(nanoseconds=9223372036854775807, clock_type=self.next_ts.clock_type)
+        self.next_ts = _ros_max_time()
         self.period = Duration(seconds=0)
         self.active = False
         self.msgs_processed = 0
@@ -46,7 +55,7 @@ class _EventQueue:
             return first_ts
         if self.active:
             return self.next_ts
-        return Time(nanoseconds=9223372036854775807, clock_type=self.next_ts.clock_type)
+        return _ros_max_time()
 
     def pop_first(self):
         self.events.pop(0)
@@ -68,7 +77,7 @@ class _EventQueue:
 class InputAligner:
     def __init__(self, timeout, *filters):
         self.timeout = timeout
-        zero_time = Time.from_msg(Time(seconds=0).to_msg())
+        zero_time = _ros_zero_time()
         self.last_in_ts = zero_time
         self.last_out_ts = zero_time
         self.name = ''
