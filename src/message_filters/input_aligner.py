@@ -2,7 +2,6 @@ from bisect import insort_right
 from dataclasses import dataclass
 import threading
 
-from rclpy.clock_type import ClockType
 from rclpy.duration import Duration
 from rclpy.time import Time
 
@@ -32,7 +31,8 @@ class _Signal:
 class _EventQueue:
     def __init__(self):
         self.events = []
-        self.next_ts = Time(nanoseconds=9223372036854775807, clock_type=ClockType.ROS_TIME)
+        self.next_ts = Time(seconds=0).from_msg(Time(seconds=0).to_msg())
+        self.next_ts = Time(nanoseconds=9223372036854775807, clock_type=self.next_ts.clock_type)
         self.period = Duration(seconds=0)
         self.active = False
         self.msgs_processed = 0
@@ -46,7 +46,7 @@ class _EventQueue:
             return first_ts
         if self.active:
             return self.next_ts
-        return Time(nanoseconds=9223372036854775807, clock_type=ClockType.ROS_TIME)
+        return Time(nanoseconds=9223372036854775807, clock_type=self.next_ts.clock_type)
 
     def pop_first(self):
         self.events.pop(0)
@@ -68,8 +68,9 @@ class _EventQueue:
 class InputAligner:
     def __init__(self, timeout, *filters):
         self.timeout = timeout
-        self.last_in_ts = Time(nanoseconds=0, clock_type=ClockType.ROS_TIME)
-        self.last_out_ts = Time(nanoseconds=0, clock_type=ClockType.ROS_TIME)
+        zero_time = Time.from_msg(Time(seconds=0).to_msg())
+        self.last_in_ts = zero_time
+        self.last_out_ts = zero_time
         self.name = ''
         self.lock = threading.Lock()
         self.event_queues = []
